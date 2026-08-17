@@ -41,7 +41,7 @@ async def send(websocket, action, data):
 
 
 async def start(auth_token):
-    uri = "wss://codechallenge-server.up.railway.app/ws?token={}".format(auth_token)
+    uri = "wss://server.codechallenge.net.ar/ws?token={}".format(auth_token)
     # uri = "ws://localhost:5000/ws?token={}".format(auth_token)
 
     while True:
@@ -53,8 +53,8 @@ async def start(auth_token):
         except KeyboardInterrupt:
             print('Exiting...')
             break
-        except Exception:
-            print('connection error!')
+        except Exception as e:
+            print(f'connection error! {type(e).__name__}: {e}')
             time.sleep(3)
 
 
