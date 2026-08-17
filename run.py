@@ -1,10 +1,16 @@
 import asyncio
 import json
-from random import randint
+import os
 import sys
-import websockets
 import time
 
+import websockets
+from dotenv import load_dotenv
+
+from strategy.heuristics import choose_direction
+from strategy.snake_adapter import parse_state
+
+load_dotenv()
 
 # A running text log of events received / actions sent per game, written to
 # game_<game_id>.log when the match ends.
@@ -29,19 +35,15 @@ def write_game_log(game_id):
 
 
 async def send(websocket, action, data):
-    message = json.dumps(
-        {
-            'action': action,
-            'data': data,
-        }
-    )
+    message = json.dumps({'action': action, 'data': data})
     print(message)
     await websocket.send(message)
 
 
 async def start(auth_token):
-    uri = "wss://server.codechallenge.net.ar/ws?token={}".format(auth_token)
+    uri = "wss://codechallenge-server.up.railway.app/ws?token={}".format(auth_token)
     # uri = "ws://localhost:5000/ws?token={}".format(auth_token)
+
     while True:
         try:
             print('connection to {}'.format(uri))
@@ -56,48 +58,32 @@ async def start(auth_token):
             time.sleep(3)
 
 
-async def on_game_over(websocket, request_data):
-    game_id = request_data['data'].get('game_id')
-    if game_id:
-        log_event(game_id, request_data)
-        write_game_log(game_id)
-
-
-async def on_challenge(websocket, request_data):
-    # if request_data['data']['opponent'] == 'favoriteopponent':
-    await send(
-        websocket,
-        'accept_challenge',
-        {
-            'challenge_id': request_data['data']['challenge_id'],
-        },
-    )
-
-
-async def on_your_turn(websocket, request_data):
-    log_event(request_data['data']['game_id'], request_data)
-    await process_your_turn(websocket, request_data)
-
-
-# Un evento sin entrada acá se ignora, que es lo que queremos para los
-# informativos ('update_user_list'). Para reaccionar a uno nuevo, escribí su
-# handler y agregalo al dict — no toques play().
-HANDLERS = {
-    'game_over': on_game_over,
-    'challenge': on_challenge,
-    'your_turn': on_your_turn,
-}
-
-
 async def play(websocket):
     while True:
         try:
             request = await websocket.recv()
             print(f"< {request}")
             request_data = json.loads(request)
-            handler = HANDLERS.get(request_data['event'])
-            if handler:
-                await handler(websocket, request_data)
+
+            if request_data['event'] == 'update_user_list':
+                pass
+
+            if request_data['event'] == 'game_over':
+                game_id = request_data['data'].get('game_id')
+                if game_id:
+                    log_event(game_id, request_data)
+                    write_game_log(game_id)
+
+            if request_data['event'] == 'challenge':
+                await send(
+                    websocket, 'accept_challenge',
+                    {'challenge_id': request_data['data']['challenge_id']},
+                )
+
+            if request_data['event'] == 'your_turn':
+                log_event(request_data['data']['game_id'], request_data)
+                await process_your_turn(websocket, request_data)
+
         except KeyboardInterrupt:
             print('Exiting...')
             break
@@ -107,41 +93,32 @@ async def play(websocket):
 
 
 async def process_your_turn(websocket, request_data):
-    # if randint(0, 4) >= 1:
     await process_move(websocket, request_data)
 
 
 async def process_move(websocket, request_data):
-    # `data` también trae 'side', que este bot no mira porque juega al azar.
-    board = request_data['data']['board']
-    colums = board.find('|', 1) - 1
-    print(board)
+    turn_data = request_data['data']
+    print(turn_data['board'])
+
+    state = parse_state(turn_data)
+    direction = choose_direction(state)
+
     move = {
-        'game_id': request_data['data']['game_id'],
-        'turn_token': request_data['data']['turn_token'],
-        'col': randint(0, colums),
+        'game_id': turn_data['game_id'],
+        'turn_token': turn_data['turn_token'],
+        'direction': direction,
     }
     log_action(move['game_id'], {'action': 'move', 'data': move})
     await send(websocket, 'move', move)
 
 
-async def process_wall(websocket, request_data):
-    await send(
-        websocket,
-        'wall',
-        {
-            'game_id': request_data['data']['game_id'],
-            'turn_token': request_data['data']['turn_token'],
-            'row': randint(0, 8),
-            'col': randint(0, 8),
-            'orientation': 'h' if randint(0, 1) == 0 else 'v'
-        },
-    )
-
-
 if __name__ == '__main__':
     if len(sys.argv) >= 2:
         auth_token = sys.argv[1]
+    else:
+        auth_token = os.environ.get('BOT_TOKEN')
+
+    if auth_token:
         asyncio.get_event_loop().run_until_complete(start(auth_token))
     else:
-        print('please provide your auth_token')
+        print('please provide your auth_token (as an argument, or set BOT_TOKEN in a .env file)')

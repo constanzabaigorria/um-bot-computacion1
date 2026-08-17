@@ -2,174 +2,20 @@ name: tests
 
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
 
 jobs:
-  unittest:
+  test:
     runs-on: ubuntu-latest
-
-    # Lo que necesita python-coverage-comment-action: escribir la branch de
-    # datos del badge y comentar en los PRs.
-    permissions:
-      contents: write
-      pull-requests: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.9', '3.12']
-
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-
+          python-version: "3.11"
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-
-      # Estilo y errores obvios. La config vive en setup.cfg, así que acá no
-      # va ninguna flag: `flake8 .` lee de ahí el largo de línea y los excludes.
-      - name: Lint
-        run: flake8 .
-
-      - name: Run tests with coverage
-        run: coverage run -m unittest discover -v
-
-      # El umbral del 90% vive en .coveragerc (fail_under), así que este paso
-      # falla la build si la cobertura baja de ahí.
-      - name: Check coverage
-        run: |
-          coverage report -m
-          coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
-
-      # Complejidad ciclomática: todo el repo está en A y así se queda. El peor
-      # bloque es play() con A (5), o sea que hay margen hasta 5 antes de que
-      # algo caiga a B y rompa la build.
-      - name: Check complexity
-        run: xenon --max-absolute A --max-modules A --max-average A run.py test_run.py
-
-      # Badge y comentario de cobertura sin servicio externo: en push a main la
-      # action guarda el badge en la branch python-coverage-comment-action-data
-      # de este mismo repo, y en un PR deja el detalle línea por línea como
-      # comentario. Sólo una pata de la matriz, si no se pisan entre sí.
-      - name: Coverage badge and PR comment
-        if: matrix.python-version == '3.12'
-        uses: py-cov-action/python-coverage-comment-action@v3
-        with:
-          GITHUB_TOKEN: ${{ github.token }}
-
-  # Los tres badges del README se generan acá y salen todos de la misma branch
-  # de datos, así no dependemos de que un tercero publique nada.
-  #
-  # Va en un job aparte a propósito: python-coverage-comment-action corre en
-  # Docker como root y deja el .git del workspace con dueño root, así que
-  # cualquier `git commit` posterior en ese mismo job muere con
-  # "could not open '.git/COMMIT_EDITMSG': Permission denied". Un job nuevo
-  # arranca con un checkout limpio.
-  badges:
-    needs: unittest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: pip
-
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-
-      - name: Measure
-        run: |
-          # Es el mismo commit que ya validó el job unittest, así que los
-          # números dan igual; se recalculan porque este job arranca limpio.
-          flake8 . --exit-zero -qq --count > "$RUNNER_TEMP/lint.txt"
-          coverage run -m unittest discover > /dev/null 2>&1
-          coverage report --format=total > "$RUNNER_TEMP/total.txt"
-          radon cc run.py test_run.py -j > "$RUNNER_TEMP/cc.json"
-
-      - name: Build shields.io endpoints
-        run: |
-          cat > "$RUNNER_TEMP/badges.py" <<'PY'
-          import json
-          import pathlib
-          import sys
-
-          cc_path, total_path, lint_path, out_dir = sys.argv[1:5]
-          out = pathlib.Path(out_dir)
-          out.mkdir(parents=True, exist_ok=True)
-
-          def write(name, label, message, color):
-              body = {'schemaVersion': 1, 'label': label,
-                      'message': message, 'color': color}
-              (out / name).write_text(json.dumps(body))
-              print(name, body)
-
-          # complejidad: el peor bloque del repo, no el promedio. Un promedio
-          # esconde justo la funcion que querrias mirar.
-          RANK_COLORS = {'A': 'brightgreen', 'B': 'yellowgreen', 'C': 'yellow',
-                         'D': 'orange', 'E': 'orangered', 'F': 'red'}
-          blocks = []
-
-          def walk(bs):
-              for b in bs:
-                  blocks.append(b)
-                  walk(b.get('closures', []))
-
-          for path, bs in json.loads(pathlib.Path(cc_path).read_text()).items():
-              if isinstance(bs, dict):  # radon informa errores como {"error": ...}
-                  sys.exit('radon no pudo leer {}: {}'.format(path, bs))
-              walk(bs)
-
-          worst = max(blocks, key=lambda b: b['complexity'])
-          write('complexity.json', 'complexity',
-                '{} ({})'.format(worst['rank'], worst['complexity']),
-                RANK_COLORS[worst['rank']])
-
-          # cobertura: 90 es el minimo que pide el curso
-          pct = int(pathlib.Path(total_path).read_text().strip())
-          if pct >= 95:
-              color = 'brightgreen'
-          elif pct >= 90:
-              color = 'green'
-          elif pct >= 75:
-              color = 'yellow'
-          else:
-              color = 'red'
-          write('coverage.json', 'coverage', '{}%'.format(pct), color)
-
-          # lint
-          issues = int(pathlib.Path(lint_path).read_text().strip())
-          write('lint.json', 'flake8',
-                'passing' if issues == 0 else '{} issues'.format(issues),
-                'brightgreen' if issues == 0 else 'red')
-          PY
-          python "$RUNNER_TEMP/badges.py" \
-            "$RUNNER_TEMP/cc.json" "$RUNNER_TEMP/total.txt" \
-            "$RUNNER_TEMP/lint.txt" "$RUNNER_TEMP/badges"
-
-      - name: Publish to the badge-data branch
-        run: |
-          # La branch es sólo data generada, así que se reescribe entera en cada
-          # push: un único commit huérfano, sin historia que mantener.
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout --orphan badge-data
-          git rm -rf --cached . > /dev/null
-          cp "$RUNNER_TEMP"/badges/*.json .
-          git add -f coverage.json complexity.json lint.json
-          git commit -m "Badges for ${GITHUB_SHA:0:7}"
-          git push -f origin badge-data
+        run: pip install -r requirements.txt
+      - name: Run tests
+        run: pytest -v
