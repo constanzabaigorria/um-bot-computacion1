@@ -1,7 +1,7 @@
 # codechallenge-test-client
 
 [![tests](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml/badge.svg)](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml)
-[![coverage](https://raw.githubusercontent.com/thecodechallenge/codechallenge-test-client/python-coverage-comment-action-data/badge.svg)](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml)
+[![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/thecodechallenge/codechallenge-test-client/python-coverage-comment-action-data/endpoint.json)](https://htmlpreview.github.io/?https://github.com/thecodechallenge/codechallenge-test-client/blob/python-coverage-comment-action-data/htmlcov/index.html)
 
 A minimal **bot client** for [The Code Challenge](https://codechallenge.net.ar).
 It connects to the match server over a websocket using your bot's token,
@@ -86,11 +86,19 @@ The badge at the top and the coverage comment on pull requests come from
 which needs **no third-party account** — no Coveralls, no Codecov, no signup,
 no secret. Everything lives in this repo:
 
-- on a push to `main` it writes `badge.svg` to an orphan branch named
-  `python-coverage-comment-action-data`, which is what the README badge points
-  at. That branch holds only generated data — never check it out to work on.
+- on a push to `main` it writes the coverage data — plus the full browsable
+  HTML report — to an orphan branch named
+  `python-coverage-comment-action-data`. That branch holds only generated
+  files; never check it out to work on.
 - on a pull request it posts (and updates) a comment with the coverage diff,
   line by line.
+
+The badge reads `endpoint.json` off that branch through
+[shields.io](https://shields.io/endpoint). The action also writes a plain
+`badge.svg` next to it, but **don't point the README at it**: GitHub proxies
+README images through camo, and `raw.githubusercontent.com` serves `.svg` as
+plain text, so it renders as a broken image. The shields endpoint has no such
+problem on a public repo, and it caches for five minutes.
 
 That's why the job asks for `contents: write` and `pull-requests: write`, and
 why `.coveragerc` sets `relative_files = true` — the action reads the coverage
