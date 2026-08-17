@@ -1,0 +1,9 @@
+# coverage 7.15.x requiere Python >= 3.10; en 3.9 pip resuelve a la 7.10.x.
+# El rango mantiene verde toda la matriz de CI.
+coverage>=7.10,<8
+
+# Complejidad ciclomatica. Los umbrales viven en el paso de CI, no acá.
+xenon>=0.9,<1
+
+# Linter. La config vive en setup.cfg.
+flake8>=7,<8
