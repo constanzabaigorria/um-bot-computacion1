@@ -57,3 +57,50 @@ jobs:
         uses: py-cov-action/python-coverage-comment-action@v3
         with:
           GITHUB_TOKEN: ${{ github.token }}
+
+      # Nadie hostea un badge de complejidad, así que lo generamos: `radon -j`
+      # da el detalle por bloque y de ahí sale el peor rank del repo, publicado
+      # como endpoint de shields.io en su propia branch de datos. Va último
+      # porque deja el workspace en otra branch.
+      - name: Publish complexity badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.python-version == '3.12'
+        run: |
+          cat > "$RUNNER_TEMP/badge.py" <<'PY'
+          import json, sys
+
+          COLORS = {'A': 'brightgreen', 'B': 'yellowgreen', 'C': 'yellow',
+                    'D': 'orange', 'E': 'orangered', 'F': 'red'}
+
+          blocks = []
+
+          def walk(bs):
+              for b in bs:
+                  blocks.append(b)
+                  walk(b.get('closures', []))
+
+          for path, bs in json.load(sys.stdin).items():
+              if isinstance(bs, dict):  # radon informa errores como {"error": ...}
+                  sys.exit(f"radon no pudo leer {path}: {bs}")
+              walk(bs)
+
+          worst = max(blocks, key=lambda b: b['complexity'])
+          json.dump({
+              'schemaVersion': 1,
+              'label': 'complexity',
+              'message': f"{worst['rank']} ({worst['complexity']})",
+              'color': COLORS[worst['rank']],
+          }, sys.stdout)
+          PY
+          radon cc run.py test_run.py -j | python "$RUNNER_TEMP/badge.py" > "$RUNNER_TEMP/endpoint.json"
+          cat "$RUNNER_TEMP/endpoint.json"
+
+          # La branch es sólo data generada, así que se reescribe entera en cada
+          # push: un único commit huérfano, sin historia que mantener.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan complexity-badge-data
+          git rm -rf --cached . > /dev/null
+          cp "$RUNNER_TEMP/endpoint.json" endpoint.json
+          git add -f endpoint.json
+          git commit -m "Complexity badge for ${GITHUB_SHA:0:7}"
+          git push -f origin complexity-badge-data

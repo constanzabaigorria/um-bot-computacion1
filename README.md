@@ -2,6 +2,7 @@
 
 [![tests](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml/badge.svg)](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml)
 [![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/thecodechallenge/codechallenge-test-client/python-coverage-comment-action-data/endpoint.json)](https://htmlpreview.github.io/?https://github.com/thecodechallenge/codechallenge-test-client/blob/python-coverage-comment-action-data/htmlcov/index.html)
+[![complexity](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/thecodechallenge/codechallenge-test-client/complexity-badge-data/endpoint.json)](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml)
 
 A minimal **bot client** for [The Code Challenge](https://codechallenge.net.ar).
 It connects to the match server over a websocket using your bot's token,
@@ -137,12 +138,35 @@ see the breakdown instead of a pass/fail:
 radon cc run.py -s -a
 ```
 
+### Badge
+
+No service hosts a complexity badge the way Coveralls hosts a coverage one, so
+the workflow builds it. `radon cc -j` prints one entry per block, and a short
+script picks the worst one and writes it as a
+[shields.io endpoint](https://shields.io/endpoint):
+
+```json
+{"schemaVersion": 1, "label": "complexity", "message": "B (9)", "color": "yellowgreen"}
+```
+
+Colour follows the rank: A green, B yellow-green, C yellow, D orange, F red. So
+the badge shows the single worst block in the repo, not an average — an average
+hides exactly the function you'd want to know about.
+
+That JSON is force-pushed as a single orphan commit to a
+`complexity-badge-data` branch, on pushes to `main` only. Like the coverage
+data branch, it holds nothing but generated output and is rewritten every run;
+never check it out to work on.
+
+The badge is informational. What actually blocks a merge is the `xenon` step.
+
 ## Continuous integration
 
 `.github/workflows/tests.yml` runs on every push and pull request, on Python
 3.9 and 3.12. It installs both requirement files, runs the suite under
 `coverage run`, then `coverage report -m`, then `xenon` — so a change that drops
-coverage below 90% *or* pushes a function past rank B fails the build.
+coverage below 90% *or* pushes a function past rank B fails the build. On a push
+to `main` it then refreshes the two badge data branches.
 
 > `requirements-dev.txt` asks for `coverage>=7.10,<8` instead of a hard pin:
 > 7.15.x needs Python ≥ 3.10 and this repo still tests on 3.9.
