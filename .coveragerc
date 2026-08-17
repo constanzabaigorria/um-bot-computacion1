@@ -3,6 +3,9 @@ source = .
 omit =
     test_*.py
     .venv/*
+# python-coverage-comment-action lee este archivo desde otro checkout, así que
+# las rutas absolutas del runner no le sirven.
+relative_files = true
 
 [report]
 show_missing = True

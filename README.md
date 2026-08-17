@@ -1,7 +1,7 @@
 # codechallenge-test-client
 
 [![tests](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml/badge.svg)](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml)
-[![Coverage Status](https://coveralls.io/repos/github/thecodechallenge/codechallenge-test-client/badge.svg?branch=main)](https://coveralls.io/github/thecodechallenge/codechallenge-test-client?branch=main)
+[![coverage](https://raw.githubusercontent.com/thecodechallenge/codechallenge-test-client/python-coverage-comment-action-data/badge.svg)](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml)
 
 A minimal **bot client** for [The Code Challenge](https://codechallenge.net.ar).
 It connects to the match server over a websocket using your bot's token,
@@ -79,24 +79,30 @@ measurement (`omit`) and skips the `if __name__ == '__main__':` block
 
 This repo currently sits at **100%**.
 
-### Coveralls
+### Badge and PR comments
 
-CI also publishes the report to
-[Coveralls](https://coveralls.io/github/thecodechallenge/codechallenge-test-client),
-which is where the badge at the top comes from and what gives you the
-line-by-line diff on a pull request. `coverage` writes its own `.coverage`
-binary file, so the workflow converts it first:
+The badge at the top and the coverage comment on pull requests come from
+[python-coverage-comment-action](https://github.com/py-cov-action/python-coverage-comment-action),
+which needs **no third-party account** — no Coveralls, no Codecov, no signup,
+no secret. Everything lives in this repo:
 
-```bash
-coverage lcov -o coverage.lcov
-```
+- on a push to `main` it writes `badge.svg` to an orphan branch named
+  `python-coverage-comment-action-data`, which is what the README badge points
+  at. That branch holds only generated data — never check it out to work on.
+- on a pull request it posts (and updates) a comment with the coverage diff,
+  line by line.
 
-Only the Python 3.12 leg of the matrix uploads — otherwise Coveralls gets two
-reports for the same commit and the numbers flap. The repo is public, so
-`coverallsapp/github-action@v2` authenticates with the `GITHUB_TOKEN` it
-already receives; there is no secret to configure.
+That's why the job asks for `contents: write` and `pull-requests: write`, and
+why `.coveragerc` sets `relative_files = true` — the action reads the coverage
+data from a different checkout, so absolute runner paths would not resolve.
+Only the Python 3.12 leg of the matrix runs it, so the two legs don't overwrite
+each other.
 
-Coveralls is reporting only. The build-failing threshold is still
+Each run also drops the coverage table into its **GitHub Actions summary** page
+via `coverage report --format=markdown`, so you can read it without opening the
+logs.
+
+All of this is reporting only. The build-failing threshold is still
 `fail_under = 90` in `.coveragerc`.
 
 ## Complexity

@@ -7,6 +7,13 @@ on:
 jobs:
   unittest:
     runs-on: ubuntu-latest
+
+    # Lo que necesita python-coverage-comment-action: escribir la branch de
+    # datos del badge y comentar en los PRs.
+    permissions:
+      contents: write
+      pull-requests: write
+
     strategy:
       fail-fast: false
       matrix:
@@ -31,7 +38,9 @@ jobs:
       # El umbral del 90% vive en .coveragerc (fail_under), así que este paso
       # falla la build si la cobertura baja de ahí.
       - name: Check coverage
-        run: coverage report -m
+        run: |
+          coverage report -m
+          coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
 
       # Complejidad ciclomática. Hoy el peor bloque es play() con B (9); los
       # umbrales están puestos en el estado actual para que la build falle si
@@ -39,16 +48,12 @@ jobs:
       - name: Check complexity
         run: xenon --max-absolute B --max-modules B --max-average A run.py test_run.py
 
-      # Sólo una pata de la matriz publica, si no Coveralls recibe dos reportes
-      # del mismo commit. El repo es público, así que alcanza con el
-      # GITHUB_TOKEN que la action ya recibe sola.
-      - name: Convert coverage to LCOV
+      # Badge y comentario de cobertura sin servicio externo: en push a main la
+      # action guarda el badge en la branch python-coverage-comment-action-data
+      # de este mismo repo, y en un PR deja el detalle línea por línea como
+      # comentario. Sólo una pata de la matriz, si no se pisan entre sí.
+      - name: Coverage badge and PR comment
         if: matrix.python-version == '3.12'
-        run: coverage lcov -o coverage.lcov
-
-      - name: Upload coverage to Coveralls
-        if: matrix.python-version == '3.12'
-        uses: coverallsapp/github-action@v2
+        uses: py-cov-action/python-coverage-comment-action@v3
         with:
-          file: coverage.lcov
-          format: lcov
+          GITHUB_TOKEN: ${{ github.token }}
