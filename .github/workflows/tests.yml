@@ -58,12 +58,35 @@ jobs:
         with:
           GITHUB_TOKEN: ${{ github.token }}
 
-      # Nadie hostea un badge de complejidad, así que lo generamos: `radon -j`
-      # da el detalle por bloque y de ahí sale el peor rank del repo, publicado
-      # como endpoint de shields.io en su propia branch de datos. Va último
-      # porque deja el workspace en otra branch.
+  # Nadie hostea un badge de complejidad, así que lo generamos: `radon -j` da el
+  # detalle por bloque, de ahí sale el peor rank del repo y se publica como
+  # endpoint de shields.io en su propia branch de datos.
+  #
+  # Va en un job aparte a propósito: python-coverage-comment-action corre en
+  # Docker como root y deja el .git del workspace con dueño root, así que
+  # cualquier `git commit` posterior en ese mismo job muere con
+  # "could not open '.git/COMMIT_EDITMSG': Permission denied". Un job nuevo
+  # arranca con un checkout limpio.
+  complexity-badge:
+    needs: unittest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install radon
+        run: pip install -r requirements-dev.txt
+
       - name: Publish complexity badge
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.python-version == '3.12'
         run: |
           cat > "$RUNNER_TEMP/badge.py" <<'PY'
           import json, sys

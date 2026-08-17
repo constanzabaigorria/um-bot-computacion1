@@ -158,6 +158,12 @@ That JSON is force-pushed as a single orphan commit to a
 data branch, it holds nothing but generated output and is rewritten every run;
 never check it out to work on.
 
+It runs as its own `complexity-badge` job rather than a step of `unittest`, and
+that's deliberate: `python-coverage-comment-action` runs in Docker as root and
+leaves the workspace's `.git` owned by root, so any later `git commit` in that
+same job dies with `could not open '.git/COMMIT_EDITMSG': Permission denied`.
+A separate job gets a clean checkout.
+
 The badge is informational. What actually blocks a merge is the `xenon` step.
 
 ## Continuous integration
