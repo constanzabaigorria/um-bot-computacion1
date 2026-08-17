@@ -2,9 +2,31 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import run
+
+
+class FakeConnect:
+    """Stand-in for `websockets.connect`: an awaitable-free context manager.
+
+    Calling it records the uri and returns itself, so `async with` hands back
+    the websocket we were built with.
+    """
+
+    def __init__(self, websocket):
+        self.websocket = websocket
+        self.uris = []
+
+    def __call__(self, uri):
+        self.uris.append(uri)
+        return self
+
+    async def __aenter__(self):
+        return self.websocket
+
+    async def __aexit__(self, *exc_info):
+        return False
 
 
 class FakeWebSocket:
@@ -297,6 +319,74 @@ class TestPlay(InTempDirTestCase, unittest.IsolatedAsyncioTestCase):
         await run.play(websocket)
 
         self.assertEqual(websocket.sent, [])
+
+    async def test_an_interrupt_stops_the_loop(self):
+        class Interrupting:
+            async def recv(self):
+                raise KeyboardInterrupt
+
+        await run.play(Interrupting())  # must not propagate
+
+
+class TestProcessWall(unittest.IsolatedAsyncioTestCase):
+
+    def your_turn(self):
+        return {'data': {'game_id': 'g_1', 'turn_token': 't_1'}}
+
+    async def test_sends_a_wall_at_the_drawn_position(self):
+        websocket = FakeWebSocket()
+
+        with patch.object(run, 'randint', return_value=0):
+            await run.process_wall(websocket, self.your_turn())
+
+        self.assertEqual(
+            websocket.sent,
+            [
+                {
+                    'action': 'wall',
+                    'data': {
+                        'game_id': 'g_1',
+                        'turn_token': 't_1',
+                        'row': 0,
+                        'col': 0,
+                        'orientation': 'h',
+                    },
+                }
+            ],
+        )
+
+    async def test_the_orientation_follows_the_draw(self):
+        websocket = FakeWebSocket()
+
+        with patch.object(run, 'randint', return_value=1):
+            await run.process_wall(websocket, self.your_turn())
+
+        self.assertEqual(websocket.sent[0]['data']['orientation'], 'v')
+
+
+class TestStart(unittest.IsolatedAsyncioTestCase):
+
+    async def test_connects_with_the_token_and_plays_until_interrupted(self):
+        connect = FakeConnect(FakeWebSocket())
+
+        with patch.object(run.websockets, 'connect', connect), \
+                patch.object(run, 'play', side_effect=KeyboardInterrupt):
+            await run.start('tok_1')
+
+        self.assertEqual(
+            connect.uris,
+            ['wss://server.codechallenge.net.ar/ws?token=tok_1'],
+        )
+
+    async def test_a_connection_error_is_retried_after_a_pause(self):
+        # First attempt blows up, second one interrupts to end the loop.
+        connect = Mock(side_effect=[Exception('boom'), KeyboardInterrupt])
+
+        with patch.object(run.websockets, 'connect', connect), \
+                patch.object(run.time, 'sleep') as sleep:
+            await run.start('tok_1')
+
+        sleep.assert_called_once_with(3)
 
 
 if __name__ == '__main__':
