@@ -54,11 +54,61 @@ connects to the production server; switch the `uri` in `run.py` to the
 using a fake websocket — nothing connects to the network.
 
 ```bash
+pip install -r requirements-dev.txt
 python -m unittest discover -v
 ```
 
-They also run on GitHub Actions for every push and pull request
-(`.github/workflows/tests.yml`), on Python 3.9 and 3.12.
+## Coverage
+
+The course requires **at least 90% coverage**, measured with
+[coverage.py](https://coverage.readthedocs.io/):
+
+```bash
+coverage run -m unittest discover
+coverage report -m
+```
+
+The threshold lives in `.coveragerc` as `fail_under = 90`, so `coverage report`
+exits non-zero on its own when coverage drops below it — you don't need to pass
+`--fail-under` by hand. That file also keeps the test files out of the
+measurement (`omit`) and skips the `if __name__ == '__main__':` block
+(`exclude_lines`), which the tests can't reach.
+
+This repo currently sits at **100%**.
+
+## Complexity
+
+Cyclomatic complexity is checked with [xenon](https://github.com/rubik/xenon),
+which wraps [radon](https://radon.readthedocs.io/) and exits non-zero when a
+threshold is crossed:
+
+```bash
+xenon --max-absolute B --max-modules B --max-average A run.py test_run.py
+```
+
+Three separate limits: `--max-absolute` is the worst any single function may
+rank, `--max-modules` the worst any whole file may average, `--max-average` the
+worst the project as a whole may average. Ranks go A (1–5) → B (6–10) → C
+(11–20) → …
+
+Today the only block above A is `play()` at **B (9)** — one `try` wrapping a
+chain of `if request_data['event'] == ...` branches. The thresholds are set at
+that current state, so they hold the line without demanding a refactor now. To
+see the breakdown instead of a pass/fail:
+
+```bash
+radon cc run.py -s -a
+```
+
+## Continuous integration
+
+`.github/workflows/tests.yml` runs on every push and pull request, on Python
+3.9 and 3.12. It installs both requirement files, runs the suite under
+`coverage run`, then `coverage report -m`, then `xenon` — so a change that drops
+coverage below 90% *or* pushes a function past rank B fails the build.
+
+> `requirements-dev.txt` asks for `coverage>=7.10,<8` instead of a hard pin:
+> 7.15.x needs Python ≥ 3.10 and this repo still tests on 3.9.
 
 ## Game logs
 

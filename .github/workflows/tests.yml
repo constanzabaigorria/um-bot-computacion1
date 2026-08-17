@@ -21,7 +21,20 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
-      - name: Run tests
-        run: python -m unittest discover -v
+      - name: Run tests with coverage
+        run: coverage run -m unittest discover -v
+
+      # El umbral del 90% vive en .coveragerc (fail_under), así que este paso
+      # falla la build si la cobertura baja de ahí.
+      - name: Check coverage
+        run: coverage report -m
+
+      # Complejidad ciclomática. Hoy el peor bloque es play() con B (9); los
+      # umbrales están puestos en el estado actual para que la build falle si
+      # algo empeora, no para pedir un refactor ahora.
+      - name: Check complexity
+        run: xenon --max-absolute B --max-modules B --max-average A run.py test_run.py
