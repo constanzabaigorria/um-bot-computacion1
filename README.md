@@ -1,5 +1,8 @@
 # codechallenge-test-client
 
+[![tests](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml/badge.svg)](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml)
+[![Coverage Status](https://coveralls.io/repos/github/thecodechallenge/codechallenge-test-client/badge.svg?branch=main)](https://coveralls.io/github/thecodechallenge/codechallenge-test-client?branch=main)
+
 A minimal **bot client** for [The Code Challenge](https://codechallenge.net.ar).
 It connects to the match server over a websocket using your bot's token,
 auto-accepts challenges, and plays. Use it as a starting point (and a smoke
@@ -75,6 +78,26 @@ measurement (`omit`) and skips the `if __name__ == '__main__':` block
 (`exclude_lines`), which the tests can't reach.
 
 This repo currently sits at **100%**.
+
+### Coveralls
+
+CI also publishes the report to
+[Coveralls](https://coveralls.io/github/thecodechallenge/codechallenge-test-client),
+which is where the badge at the top comes from and what gives you the
+line-by-line diff on a pull request. `coverage` writes its own `.coverage`
+binary file, so the workflow converts it first:
+
+```bash
+coverage lcov -o coverage.lcov
+```
+
+Only the Python 3.12 leg of the matrix uploads — otherwise Coveralls gets two
+reports for the same commit and the numbers flap. The repo is public, so
+`coverallsapp/github-action@v2` authenticates with the `GITHUB_TOKEN` it
+already receives; there is no secret to configure.
+
+Coveralls is reporting only. The build-failing threshold is still
+`fail_under = 90` in `.coveragerc`.
 
 ## Complexity
 

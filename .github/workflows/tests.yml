@@ -38,3 +38,17 @@ jobs:
       # algo empeora, no para pedir un refactor ahora.
       - name: Check complexity
         run: xenon --max-absolute B --max-modules B --max-average A run.py test_run.py
+
+      # Sólo una pata de la matriz publica, si no Coveralls recibe dos reportes
+      # del mismo commit. El repo es público, así que alcanza con el
+      # GITHUB_TOKEN que la action ya recibe sola.
+      - name: Convert coverage to LCOV
+        if: matrix.python-version == '3.12'
+        run: coverage lcov -o coverage.lcov
+
+      - name: Upload coverage to Coveralls
+        if: matrix.python-version == '3.12'
+        uses: coverallsapp/github-action@v2
+        with:
+          file: coverage.lcov
+          format: lcov
