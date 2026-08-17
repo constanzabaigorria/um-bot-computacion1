@@ -1,7 +1,7 @@
 # codechallenge-test-client
 
 [![tests](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml/badge.svg)](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml)
-[![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/thecodechallenge/codechallenge-test-client/python-coverage-comment-action-data/endpoint.json)](https://htmlpreview.github.io/?https://github.com/thecodechallenge/codechallenge-test-client/blob/python-coverage-comment-action-data/htmlcov/index.html)
+[![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/thecodechallenge/codechallenge-test-client/python-coverage-comment-action-data/endpoint.json&cacheSeconds=300)](https://htmlpreview.github.io/?https://github.com/thecodechallenge/codechallenge-test-client/blob/python-coverage-comment-action-data/htmlcov/index.html)
 [![complexity](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/thecodechallenge/codechallenge-test-client/complexity-badge-data/endpoint.json)](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml)
 
 A minimal **bot client** for [The Code Challenge](https://codechallenge.net.ar).
