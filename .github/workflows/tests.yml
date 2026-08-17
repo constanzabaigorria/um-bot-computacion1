@@ -63,16 +63,15 @@ jobs:
         with:
           GITHUB_TOKEN: ${{ github.token }}
 
-  # Nadie hostea un badge de complejidad, así que lo generamos: `radon -j` da el
-  # detalle por bloque, de ahí sale el peor rank del repo y se publica como
-  # endpoint de shields.io en su propia branch de datos.
+  # Los tres badges del README se generan acá y salen todos de la misma branch
+  # de datos, así no dependemos de que un tercero publique nada.
   #
   # Va en un job aparte a propósito: python-coverage-comment-action corre en
   # Docker como root y deja el .git del workspace con dueño root, así que
   # cualquier `git commit` posterior en ese mismo job muere con
   # "could not open '.git/COMMIT_EDITMSG': Permission denied". Un job nuevo
   # arranca con un checkout limpio.
-  complexity-badge:
+  badges:
     needs: unittest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -88,17 +87,41 @@ jobs:
           python-version: '3.12'
           cache: pip
 
-      - name: Install radon
-        run: pip install -r requirements-dev.txt
-
-      - name: Publish complexity badge
+      - name: Install dependencies
         run: |
-          cat > "$RUNNER_TEMP/badge.py" <<'PY'
-          import json, sys
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
-          COLORS = {'A': 'brightgreen', 'B': 'yellowgreen', 'C': 'yellow',
-                    'D': 'orange', 'E': 'orangered', 'F': 'red'}
+      - name: Measure
+        run: |
+          # Es el mismo commit que ya validó el job unittest, así que los
+          # números dan igual; se recalculan porque este job arranca limpio.
+          flake8 . --exit-zero -qq --count > "$RUNNER_TEMP/lint.txt"
+          coverage run -m unittest discover > /dev/null 2>&1
+          coverage report --format=total > "$RUNNER_TEMP/total.txt"
+          radon cc run.py test_run.py -j > "$RUNNER_TEMP/cc.json"
 
+      - name: Build shields.io endpoints
+        run: |
+          cat > "$RUNNER_TEMP/badges.py" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          cc_path, total_path, lint_path, out_dir = sys.argv[1:5]
+          out = pathlib.Path(out_dir)
+          out.mkdir(parents=True, exist_ok=True)
+
+          def write(name, label, message, color):
+              body = {'schemaVersion': 1, 'label': label,
+                      'message': message, 'color': color}
+              (out / name).write_text(json.dumps(body))
+              print(name, body)
+
+          # complejidad: el peor bloque del repo, no el promedio. Un promedio
+          # esconde justo la funcion que querrias mirar.
+          RANK_COLORS = {'A': 'brightgreen', 'B': 'yellowgreen', 'C': 'yellow',
+                         'D': 'orange', 'E': 'orangered', 'F': 'red'}
           blocks = []
 
           def walk(bs):
@@ -106,29 +129,47 @@ jobs:
                   blocks.append(b)
                   walk(b.get('closures', []))
 
-          for path, bs in json.load(sys.stdin).items():
+          for path, bs in json.loads(pathlib.Path(cc_path).read_text()).items():
               if isinstance(bs, dict):  # radon informa errores como {"error": ...}
-                  sys.exit(f"radon no pudo leer {path}: {bs}")
+                  sys.exit('radon no pudo leer {}: {}'.format(path, bs))
               walk(bs)
 
           worst = max(blocks, key=lambda b: b['complexity'])
-          json.dump({
-              'schemaVersion': 1,
-              'label': 'complexity',
-              'message': f"{worst['rank']} ({worst['complexity']})",
-              'color': COLORS[worst['rank']],
-          }, sys.stdout)
-          PY
-          radon cc run.py test_run.py -j | python "$RUNNER_TEMP/badge.py" > "$RUNNER_TEMP/endpoint.json"
-          cat "$RUNNER_TEMP/endpoint.json"
+          write('complexity.json', 'complexity',
+                '{} ({})'.format(worst['rank'], worst['complexity']),
+                RANK_COLORS[worst['rank']])
 
+          # cobertura: 90 es el minimo que pide el curso
+          pct = int(pathlib.Path(total_path).read_text().strip())
+          if pct >= 95:
+              color = 'brightgreen'
+          elif pct >= 90:
+              color = 'green'
+          elif pct >= 75:
+              color = 'yellow'
+          else:
+              color = 'red'
+          write('coverage.json', 'coverage', '{}%'.format(pct), color)
+
+          # lint
+          issues = int(pathlib.Path(lint_path).read_text().strip())
+          write('lint.json', 'flake8',
+                'passing' if issues == 0 else '{} issues'.format(issues),
+                'brightgreen' if issues == 0 else 'red')
+          PY
+          python "$RUNNER_TEMP/badges.py" \
+            "$RUNNER_TEMP/cc.json" "$RUNNER_TEMP/total.txt" \
+            "$RUNNER_TEMP/lint.txt" "$RUNNER_TEMP/badges"
+
+      - name: Publish to the badge-data branch
+        run: |
           # La branch es sólo data generada, así que se reescribe entera en cada
           # push: un único commit huérfano, sin historia que mantener.
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout --orphan complexity-badge-data
+          git checkout --orphan badge-data
           git rm -rf --cached . > /dev/null
-          cp "$RUNNER_TEMP/endpoint.json" endpoint.json
-          git add -f endpoint.json
-          git commit -m "Complexity badge for ${GITHUB_SHA:0:7}"
-          git push -f origin complexity-badge-data
+          cp "$RUNNER_TEMP"/badges/*.json .
+          git add -f coverage.json complexity.json lint.json
+          git commit -m "Badges for ${GITHUB_SHA:0:7}"
+          git push -f origin badge-data

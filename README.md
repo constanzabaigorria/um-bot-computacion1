@@ -1,8 +1,9 @@
 # codechallenge-test-client
 
 [![tests](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml/badge.svg)](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml)
-[![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/thecodechallenge/codechallenge-test-client/python-coverage-comment-action-data/endpoint.json&cacheSeconds=300)](https://htmlpreview.github.io/?https://github.com/thecodechallenge/codechallenge-test-client/blob/python-coverage-comment-action-data/htmlcov/index.html)
-[![complexity](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/thecodechallenge/codechallenge-test-client/complexity-badge-data/endpoint.json)](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml)
+[![flake8](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/thecodechallenge/codechallenge-test-client/badge-data/lint.json&cacheSeconds=300)](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml)
+[![coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/thecodechallenge/codechallenge-test-client/badge-data/coverage.json&cacheSeconds=300)](https://htmlpreview.github.io/?https://github.com/thecodechallenge/codechallenge-test-client/blob/python-coverage-comment-action-data/htmlcov/index.html)
+[![complexity](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/thecodechallenge/codechallenge-test-client/badge-data/complexity.json&cacheSeconds=300)](https://github.com/thecodechallenge/codechallenge-test-client/actions/workflows/tests.yml)
 
 A minimal **bot client** for [The Code Challenge](https://codechallenge.net.ar).
 It connects to the match server over a websocket using your bot's token,
@@ -117,32 +118,23 @@ block (`exclude_lines`), which the tests can't reach.
 
 This repo currently sits at **100%**.
 
-### Badge and PR comments
+### PR comments and the HTML report
 
-The badge at the top and the coverage comment on pull requests come from
-[python-coverage-comment-action](https://github.com/py-cov-action/python-coverage-comment-action),
-which needs **no third-party account** — no Coveralls, no Codecov, no signup,
-no secret. Everything lives in this repo:
+[python-coverage-comment-action](https://github.com/py-cov-action/python-coverage-comment-action)
+posts (and updates) a comment on every pull request with the coverage diff,
+line by line, and publishes the full browsable HTML report — the one the
+coverage badge links to. It needs **no third-party account**: no Coveralls, no
+Codecov, no signup, no secret.
 
-- on a push to `main` it writes the coverage data — plus the full browsable
-  HTML report — to an orphan branch named
-  `python-coverage-comment-action-data`. That branch holds only generated
-  files; never check it out to work on.
-- on a pull request it posts (and updates) a comment with the coverage diff,
-  line by line.
+It keeps both in an orphan `python-coverage-comment-action-data` branch. That
+branch holds only generated files; never check it out to work on. This is why
+the job asks for `contents: write` and `pull-requests: write`, and why
+`.coveragerc` sets `relative_files = true` — the action reads the coverage data
+from a different checkout, so absolute runner paths would not resolve. Only the
+Python 3.12 leg of the matrix runs it, so the two legs don't overwrite each
+other.
 
-The badge reads `endpoint.json` off that branch through
-[shields.io](https://shields.io/endpoint). The action also writes a plain
-`badge.svg` next to it, but **don't point the README at it**: GitHub proxies
-README images through camo, and `raw.githubusercontent.com` serves `.svg` as
-plain text, so it renders as a broken image. The shields endpoint has no such
-problem on a public repo, and it caches for five minutes.
-
-That's why the job asks for `contents: write` and `pull-requests: write`, and
-why `.coveragerc` sets `relative_files = true` — the action reads the coverage
-data from a different checkout, so absolute runner paths would not resolve.
-Only the Python 3.12 leg of the matrix runs it, so the two legs don't overwrite
-each other.
+The badge itself does **not** come from this action — see [Badges](#badges).
 
 Each run also drops the coverage table into its **GitHub Actions summary** page
 via `coverage report --format=markdown`, so you can read it without opening the
@@ -167,7 +159,7 @@ xenon --max-absolute B --max-modules B --max-average A run.py test_run.py
 | --- | --- | --- |
 | The rank thresholds | [`.github/workflows/tests.yml`](.github/workflows/tests.yml) | step `Check complexity` — the `--max-*` flags |
 | Tool version | [`requirements-dev.txt`](requirements-dev.txt) | `xenon>=0.9,<1` |
-| Badge generation | [`.github/workflows/tests.yml`](.github/workflows/tests.yml) | job `complexity-badge` |
+| Badge generation | [`.github/workflows/tests.yml`](.github/workflows/tests.yml) | job `badges` |
 
 Note there is **no config file** for this one: xenon takes its thresholds only
 as command-line flags, so the workflow step *is* the configuration. Change the
@@ -187,33 +179,47 @@ see the breakdown instead of a pass/fail:
 radon cc run.py -s -a
 ```
 
-### Badge
+The complexity badge reports the **single worst block** in the repo, not an
+average — an average hides exactly the function you'd want to know about. See
+[Badges](#badges).
 
-No service hosts a complexity badge the way Coveralls hosts a coverage one, so
-the workflow builds it. `radon cc -j` prints one entry per block, and a short
-script picks the worst one and writes it as a
-[shields.io endpoint](https://shields.io/endpoint):
+## Badges
+
+All three badges — flake8, coverage, complexity — are generated by the `badges`
+job and served from one `badge-data` branch. Nothing is hosted by a third
+party.
+
+The job re-measures the commit, then writes one
+[shields.io endpoint](https://shields.io/endpoint) file per gate:
+
+| File | Looks like | Colour |
+| --- | --- | --- |
+| `lint.json` | `passing`, or `3 issues` | green / red |
+| `coverage.json` | `100%` | green ≥ 95, green ≥ 90, yellow ≥ 75, red below |
+| `complexity.json` | `B (9)` — the worst block | follows the rank: A green → F red |
 
 ```json
 {"schemaVersion": 1, "label": "complexity", "message": "B (9)", "color": "yellowgreen"}
 ```
 
-Colour follows the rank: A green, B yellow-green, C yellow, D orange, F red. So
-the badge shows the single worst block in the repo, not an average — an average
-hides exactly the function you'd want to know about.
+The three files are force-pushed as a single orphan commit to `badge-data`, on
+pushes to `main` only. Like the coverage action's branch, it holds nothing but
+generated output and is rewritten every run; never check it out to work on.
 
-That JSON is force-pushed as a single orphan commit to a
-`complexity-badge-data` branch, on pushes to `main` only. Like the coverage
-data branch, it holds nothing but generated output and is rewritten every run;
-never check it out to work on.
+Two things worth knowing if you touch this:
 
-It runs as its own `complexity-badge` job rather than a step of `unittest`, and
-that's deliberate: `python-coverage-comment-action` runs in Docker as root and
-leaves the workspace's `.git` owned by root, so any later `git commit` in that
-same job dies with `could not open '.git/COMMIT_EDITMSG': Permission denied`.
-A separate job gets a clean checkout.
+- **Don't point a badge at a `.svg` on `raw.githubusercontent.com`.** GitHub
+  proxies README images through camo, and raw serves `.svg` as plain text, so
+  it renders as a broken image. That's why every badge here goes through the
+  shields endpoint, which returns a real `image/svg+xml`.
+- **It has to be its own job.** `python-coverage-comment-action` runs in Docker
+  as root and leaves the workspace's `.git` owned by root, so a `git commit`
+  later in that same job dies with
+  `could not open '.git/COMMIT_EDITMSG': Permission denied`. A separate job
+  gets a clean checkout.
 
-The badge is informational. What actually blocks a merge is the `xenon` step.
+Badges are informational. What blocks a merge are the `Lint`, `Check coverage`
+and `Check complexity` steps.
 
 ## Continuous integration
 
