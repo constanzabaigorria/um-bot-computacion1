@@ -95,7 +95,7 @@ async def process_your_turn(websocket, request_data):
 
 
 async def process_move(websocket, request_data):
-    side = request_data['data']['side']
+    # `data` también trae 'side', que este bot no mira porque juega al azar.
     board = request_data['data']['board']
     colums = board.find('|', 1) - 1
     print(board)

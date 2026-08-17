@@ -62,6 +62,33 @@ pip install -r requirements-dev.txt
 python -m unittest discover -v
 ```
 
+## Lint
+
+[flake8](https://flake8.pycqa.org/) — style plus the obvious errors (unused
+imports and variables, undefined names):
+
+```bash
+flake8 .
+```
+
+**Where it's configured**
+
+| Setting | File | Key |
+| --- | --- | --- |
+| Line length, ignored codes, excludes | [`setup.cfg`](setup.cfg) | `[flake8]` |
+| Tool version | [`requirements-dev.txt`](requirements-dev.txt) | `flake8>=7,<8` |
+| Enforced on every push | [`.github/workflows/tests.yml`](.github/workflows/tests.yml) | step `Lint` |
+
+The values in `setup.cfg` — `max-line-length = 119`, `ignore = W503,W504` — are
+copied from `codechallenge-connect4`, `-game-template` and `-grpc` on purpose,
+so every repo in the course lints the same way. Because the config lives in
+that file, the CI step is a bare `flake8 .` with no flags.
+
+> Why flake8 and not [ruff](https://docs.astral.sh/ruff/), which is far faster
+> and would fold in the complexity check too: consistency with the other course
+> repos wins here. On a two-file repo flake8 takes well under a second, so the
+> speed argument buys nothing.
+
 ## Coverage
 
 The course requires **at least 90% coverage**, measured with
@@ -72,11 +99,21 @@ coverage run -m unittest discover
 coverage report -m
 ```
 
+**Where it's configured**
+
+| Setting | File | Key |
+| --- | --- | --- |
+| The 90% threshold | [`.coveragerc`](.coveragerc) | `[report] fail_under = 90` |
+| What gets measured | [`.coveragerc`](.coveragerc) | `[run] source`, `omit` |
+| Lines the tests can't reach | [`.coveragerc`](.coveragerc) | `[report] exclude_lines` |
+| Tool version | [`requirements-dev.txt`](requirements-dev.txt) | `coverage>=7.10,<8` |
+| Enforced on every push | [`.github/workflows/tests.yml`](.github/workflows/tests.yml) | steps `Run tests with coverage` → `Check coverage` |
+
 The threshold lives in `.coveragerc` as `fail_under = 90`, so `coverage report`
 exits non-zero on its own when coverage drops below it — you don't need to pass
-`--fail-under` by hand. That file also keeps the test files out of the
-measurement (`omit`) and skips the `if __name__ == '__main__':` block
-(`exclude_lines`), which the tests can't reach.
+`--fail-under` by hand, in CI or locally. That file also keeps the test files
+out of the measurement (`omit`) and skips the `if __name__ == '__main__':`
+block (`exclude_lines`), which the tests can't reach.
 
 This repo currently sits at **100%**.
 
@@ -124,6 +161,18 @@ threshold is crossed:
 xenon --max-absolute B --max-modules B --max-average A run.py test_run.py
 ```
 
+**Where it's configured**
+
+| Setting | File | Key |
+| --- | --- | --- |
+| The rank thresholds | [`.github/workflows/tests.yml`](.github/workflows/tests.yml) | step `Check complexity` — the `--max-*` flags |
+| Tool version | [`requirements-dev.txt`](requirements-dev.txt) | `xenon>=0.9,<1` |
+| Badge generation | [`.github/workflows/tests.yml`](.github/workflows/tests.yml) | job `complexity-badge` |
+
+Note there is **no config file** for this one: xenon takes its thresholds only
+as command-line flags, so the workflow step *is* the configuration. Change the
+numbers there and nowhere else.
+
 Three separate limits: `--max-absolute` is the worst any single function may
 rank, `--max-modules` the worst any whole file may average, `--max-average` the
 worst the project as a whole may average. Ranks go A (1–5) → B (6–10) → C
@@ -169,10 +218,16 @@ The badge is informational. What actually blocks a merge is the `xenon` step.
 ## Continuous integration
 
 `.github/workflows/tests.yml` runs on every push and pull request, on Python
-3.9 and 3.12. It installs both requirement files, runs the suite under
-`coverage run`, then `coverage report -m`, then `xenon` — so a change that drops
-coverage below 90% *or* pushes a function past rank B fails the build. On a push
-to `main` it then refreshes the two badge data branches.
+3.9 and 3.12. Three things can fail the build, and each is documented in its own
+section above with the exact file and key:
+
+| Gate | Fails when | Configured in |
+| --- | --- | --- |
+| [Lint](#lint) | flake8 reports anything | [`setup.cfg`](setup.cfg) |
+| [Coverage](#coverage) | coverage drops below 90% | [`.coveragerc`](.coveragerc) |
+| [Complexity](#complexity) | a function passes rank B | the `Check complexity` step itself |
+
+On a push to `main` it then refreshes the two badge data branches.
 
 > `requirements-dev.txt` asks for `coverage>=7.10,<8` instead of a hard pin:
 > 7.15.x needs Python ≥ 3.10 and this repo still tests on 3.9.

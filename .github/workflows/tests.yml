@@ -32,6 +32,11 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
+      # Estilo y errores obvios. La config vive en setup.cfg, así que acá no
+      # va ninguna flag: `flake8 .` lee de ahí el largo de línea y los excludes.
+      - name: Lint
+        run: flake8 .
+
       - name: Run tests with coverage
         run: coverage run -m unittest discover -v
 

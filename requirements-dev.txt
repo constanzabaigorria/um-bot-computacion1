@@ -4,3 +4,6 @@ coverage>=7.10,<8
 
 # Complejidad ciclomatica. Los umbrales viven en el paso de CI, no acá.
 xenon>=0.9,<1
+
+# Linter. La config vive en setup.cfg.
+flake8>=7,<8
