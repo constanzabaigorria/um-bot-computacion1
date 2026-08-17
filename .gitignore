@@ -1,0 +1,15 @@
+# Secretos
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Logs de partidas (se generan en cada match, no van al repo)
+game_*.log
+
+# Editor / SO
+.vscode/
+.DS_Store
