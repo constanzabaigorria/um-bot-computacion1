@@ -56,31 +56,48 @@ async def start(auth_token):
             time.sleep(3)
 
 
+async def on_game_over(websocket, request_data):
+    game_id = request_data['data'].get('game_id')
+    if game_id:
+        log_event(game_id, request_data)
+        write_game_log(game_id)
+
+
+async def on_challenge(websocket, request_data):
+    # if request_data['data']['opponent'] == 'favoriteopponent':
+    await send(
+        websocket,
+        'accept_challenge',
+        {
+            'challenge_id': request_data['data']['challenge_id'],
+        },
+    )
+
+
+async def on_your_turn(websocket, request_data):
+    log_event(request_data['data']['game_id'], request_data)
+    await process_your_turn(websocket, request_data)
+
+
+# Un evento sin entrada acá se ignora, que es lo que queremos para los
+# informativos ('update_user_list'). Para reaccionar a uno nuevo, escribí su
+# handler y agregalo al dict — no toques play().
+HANDLERS = {
+    'game_over': on_game_over,
+    'challenge': on_challenge,
+    'your_turn': on_your_turn,
+}
+
+
 async def play(websocket):
     while True:
         try:
             request = await websocket.recv()
             print(f"< {request}")
             request_data = json.loads(request)
-            if request_data['event'] == 'update_user_list':
-                pass
-            if request_data['event'] == 'game_over':
-                game_id = request_data['data'].get('game_id')
-                if game_id:
-                    log_event(game_id, request_data)
-                    write_game_log(game_id)
-            if request_data['event'] == 'challenge':
-                # if request_data['data']['opponent'] == 'favoriteopponent':
-                await send(
-                    websocket,
-                    'accept_challenge',
-                    {
-                        'challenge_id': request_data['data']['challenge_id'],
-                    },
-                )
-            if request_data['event'] == 'your_turn':
-                log_event(request_data['data']['game_id'], request_data)
-                await process_your_turn(websocket, request_data)
+            handler = HANDLERS.get(request_data['event'])
+            if handler:
+                await handler(websocket, request_data)
         except KeyboardInterrupt:
             print('Exiting...')
             break

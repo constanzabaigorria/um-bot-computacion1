@@ -47,11 +47,11 @@ jobs:
           coverage report -m
           coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
 
-      # Complejidad ciclomática. Hoy el peor bloque es play() con B (9); los
-      # umbrales están puestos en el estado actual para que la build falle si
-      # algo empeora, no para pedir un refactor ahora.
+      # Complejidad ciclomática: todo el repo está en A y así se queda. El peor
+      # bloque es play() con A (5), o sea que hay margen hasta 5 antes de que
+      # algo caiga a B y rompa la build.
       - name: Check complexity
-        run: xenon --max-absolute B --max-modules B --max-average A run.py test_run.py
+        run: xenon --max-absolute A --max-modules A --max-average A run.py test_run.py
 
       # Badge y comentario de cobertura sin servicio externo: en push a main la
       # action guarda el badge en la branch python-coverage-comment-action-data

@@ -150,7 +150,7 @@ which wraps [radon](https://radon.readthedocs.io/) and exits non-zero when a
 threshold is crossed:
 
 ```bash
-xenon --max-absolute B --max-modules B --max-average A run.py test_run.py
+xenon --max-absolute A --max-modules A --max-average A run.py test_run.py
 ```
 
 **Where it's configured**
@@ -170,10 +170,17 @@ rank, `--max-modules` the worst any whole file may average, `--max-average` the
 worst the project as a whole may average. Ranks go A (1–5) → B (6–10) → C
 (11–20) → …
 
-Today the only block above A is `play()` at **B (9)** — one `try` wrapping a
-chain of `if request_data['event'] == ...` branches. The thresholds are set at
-that current state, so they hold the line without demanding a refactor now. To
-see the breakdown instead of a pass/fail:
+**The whole repo is rank A**, so all three limits are set to A — nothing is
+allowed to slip to B. The worst block is `play()` at A (5), which leaves room
+up to 5 before anything breaks the build.
+
+`play()` used to be B (9): one `try` wrapping a chain of
+`if request_data['event'] == ...` branches. It now looks the event up in a
+`HANDLERS` dict and awaits whatever it finds, which is also how you extend it —
+write a handler, add it to the dict, leave `play()` alone. An event with no
+entry is ignored, which is what we want for the informational ones.
+
+To see the breakdown instead of a pass/fail:
 
 ```bash
 radon cc run.py -s -a
@@ -196,10 +203,10 @@ The job re-measures the commit, then writes one
 | --- | --- | --- |
 | `lint.json` | `passing`, or `3 issues` | green / red |
 | `coverage.json` | `100%` | green ≥ 95, green ≥ 90, yellow ≥ 75, red below |
-| `complexity.json` | `B (9)` — the worst block | follows the rank: A green → F red |
+| `complexity.json` | `A (5)` — the worst block | follows the rank: A green → F red |
 
 ```json
-{"schemaVersion": 1, "label": "complexity", "message": "B (9)", "color": "yellowgreen"}
+{"schemaVersion": 1, "label": "complexity", "message": "A (5)", "color": "brightgreen"}
 ```
 
 The three files are force-pushed as a single orphan commit to `badge-data`, on
@@ -231,7 +238,7 @@ section above with the exact file and key:
 | --- | --- | --- |
 | [Lint](#lint) | flake8 reports anything | [`setup.cfg`](setup.cfg) |
 | [Coverage](#coverage) | coverage drops below 90% | [`.coveragerc`](.coveragerc) |
-| [Complexity](#complexity) | a function passes rank B | the `Check complexity` step itself |
+| [Complexity](#complexity) | any block slips out of rank A | the `Check complexity` step itself |
 
 On a push to `main` it then refreshes the two badge data branches.
 
