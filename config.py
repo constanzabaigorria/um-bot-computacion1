@@ -8,14 +8,14 @@ en heuristics.py / search.py / snake_adapter.py.
 WEIGHTS = {
     "espacio": 1.0,      # flood-fill: no autoencerrarse (prioridad alta)
     "comida": 0.5,       # BFS a la comida mas cercana (prioridad media-alta)
-    "territorio": 0.0,   # Voronoi vs. rival (Fase B, arranca en 0 -> desactivado)
+    "territorio": 0.3,   # Voronoi vs. rival (Fase B, arranca en 0 -> desactivado)
     "agresion": 0.0,     # reduce el espacio del rival (Fase B, flag off por filosofia balanceada)
 }
 
 # --- Feature flags --------------------------------------------------------
 FEATURES = {
-    "comida_enabled": False,       # se prende en Fase B (Fase A = solo espacio_libre, "lo que ya teniamos")
-    "territorio_enabled": False,   # se prende en Fase B
+    "comida_enabled": True,       # se prende en Fase B (Fase A = solo espacio_libre, "lo que ya teniamos")
+    "territorio_enabled": True,   # se prende en Fase B
     "agresion_enabled": False,     # queda para probar mas adelante, no forma parte del plan base
     "minimax_enabled": False,      # se prende en Fase D
 }
