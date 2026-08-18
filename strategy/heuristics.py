@@ -7,6 +7,8 @@ Fase A: solo `espacio_libre` estaba activa.
 Fase B: se suman `distancia_comida` y `territorio` (Voronoi vs. rival).
 `agresion` queda apagada por la filosofía "balanceada" del plan,
 disponible como flag en config.py para probar más adelante.
+
+Mitigación pre-Fase D: `two_ply_safe` (ver más abajo).
 """
 
 import random
@@ -40,11 +42,6 @@ def flood_fill(state: sa.SnakeState, start: tuple, blocked: set) -> int:
 
 
 def bfs_distances(state: sa.SnakeState, start: tuple, blocked: set) -> dict:
-    """
-    BFS desde `start`, devuelve {celda: distancia_en_pasos} para todas las
-    celdas alcanzables sin cruzar `blocked`. Usado tanto por
-    distancia_comida como por territorio (Voronoi).
-    """
     if not sa.in_bounds(state, start) or start in blocked:
         return {}
 
@@ -87,12 +84,6 @@ def distancia_comida(state: sa.SnakeState, direction: str) -> float:
 
 
 def territorio(state: sa.SnakeState, direction: str) -> float:
-    """
-    Voronoi vs. rival: de las celdas del tablero, cuántas alcanzo yo
-    estrictamente antes que el rival, partiendo de la celda a la que
-    iríamos con `direction`. Si no hay rival en el tablero (o el
-    movimiento choca), maneja esos casos límite sin explotar.
-    """
     new_head = sa.next_cell(state.my_head, direction)
 
     my_blocked = (state.my_body | state.opp_body) - {state.my_head}
@@ -133,9 +124,50 @@ def evaluate(state: sa.SnakeState, direction: str) -> float:
     return score
 
 
+def two_ply_safe(state: sa.SnakeState, direction: str) -> bool:
+    """
+    Chequeo de seguridad a 2 movimientos (no es el minimax completo de
+    Fase D, es mucho más simple): simula la peor respuesta posible del
+    rival después de nuestro movimiento, y verifica que todavía nos
+    quede al menos tanto espacio como el largo de nuestro propio cuerpo
+    -- si no, es un movimiento que hoy parece seguro pero nos puede dejar
+    encerrados en un par de jugadas.
+
+    Encontrado con el simulador (Fase C): con solo espacio_libre a 1
+    paso, el bot terminaba en negativo ~16-20% de las partidas cuando le
+    tocaba mover segundo en la ronda. Subir el peso de espacio_libre no
+    lo arreglaba (no es un problema de prioridades, es de horizonte de
+    búsqueda). Este chequeo es la mitigación barata antes de encarar el
+    minimax completo (Fase D).
+    """
+    new_head = sa.next_cell(state.my_head, direction)
+    my_blocked = (state.my_body | state.opp_body) - {state.my_head}
+    if not sa.in_bounds(state, new_head) or new_head in my_blocked:
+        return False
+
+    if state.opp_head is None:
+        return True
+
+    opp_moves = sa.generate_moves(state, head=state.opp_head)
+    my_body_length = len(state.my_body)
+
+    for opp_dir in opp_moves:
+        opp_new_head = sa.next_cell(state.opp_head, opp_dir)
+        blocked = (state.my_body | state.opp_body | {opp_new_head}) - {state.my_head}
+        space_after = flood_fill(state, new_head, blocked)
+        if space_after < my_body_length:
+            return False
+
+    return True
+
+
 def choose_direction(state: sa.SnakeState) -> str:
     candidates = sa.generate_moves(state)
-    scored = [(evaluate(state, d), d) for d in candidates]
+
+    safe_candidates = [d for d in candidates if two_ply_safe(state, d)]
+    pool = safe_candidates if safe_candidates else candidates
+
+    scored = [(evaluate(state, d), d) for d in pool]
     best_score = max(s for s, _ in scored)
     best = [d for s, d in scored if s == best_score]
     return random.choice(best)
