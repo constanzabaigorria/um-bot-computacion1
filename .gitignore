@@ -9,6 +9,7 @@ __pycache__/
 
 # Logs de partidas (se generan en cada match, no van al repo)
 game_*.log
+logs/
 
 # Editor / SO
 .vscode/
