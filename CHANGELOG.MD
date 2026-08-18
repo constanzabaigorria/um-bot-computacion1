@@ -1,5 +1,29 @@
 # Changelog
 
+## [v0.3.0-simulator] — Fase C: simulador local
+
+- Nuevo `simulator/local_match.py`: corre partidas completas de Snake en
+  memoria, sin websocket, reusando exactamente `parse_state` y
+  `choose_direction` de producción (no reimplementa la lógica en
+  paralelo).
+- Soporta bot vs. bot (por defecto nuestro bot vs. sí mismo) o bot vs.
+  `random_safe_bot` (oponente "tonto" configurable: mueve al azar entre
+  los movimientos seguros, sin buscar comida ni territorio).
+- Guarda el log de cada partida en `logs/game_<id>.log`, con el mismo
+  formato de eventos/acciones que las partidas reales.
+- CLI rápida: `python -m simulator.local_match [N] [--vs-random]` corre N
+  partidas e imprime el % de victorias.
+- 5 tests nuevos en `tests/test_local_match.py`. 17/17 tests pasan en
+  total.
+- **Hallazgo temprano**: en 5 partidas de prueba bot-vs-sí-mismo, A ganó
+  4/5 — posible ventaja de jugar primero o de la posición inicial. Vale
+  la pena revisarlo en Fase E con una muestra más grande antes de sacar
+  conclusiones.
+- Nota de diseño abierta: la longitud/posición inicial exacta de las
+  serpientes en el server real no está confirmada (TODO en
+  `LocalMatch.__init__`); se asumió largo 1 en extremos opuestos del
+  tablero.
+  
 ## [v0.2.0-heuristics] — Fase B: heurísticas fuertes
 
 - Se activa `distancia_comida` (`config.FEATURES["comida_enabled"] = True`):
