@@ -1,5 +1,24 @@
 # Changelog
 
+## [unreleased]
+
+- Se agrega `strategy.heuristics.two_ply_safe`: chequeo de seguridad a 2
+  movimientos (simula la peor respuesta del rival y verifica espacio
+  suficiente para el largo del propio cuerpo). No es el minimax completo
+  de Fase D, es una mitigación puntual más barata.
+  - **Motivo**: el simulador (Fase C) detectó que, moviendo segundo en la
+    ronda, el bot terminaba en negativo ~16-20% de las partidas — un
+    riesgo real dado que el criterio de aprobación exige que ninguna
+    partida individual quede negativa. Subir pesos no lo resolvía (no
+    era un problema de prioridades, sino de que `espacio_libre` solo mira
+    1 movimiento adelante).
+  - **Resultado medido**: con la misma condición de riesgo (60 partidas,
+    moviendo segundo, tablero 15×15), el porcentaje de partidas negativas
+    bajó de ~16-20% a 1/60 (1.7%).
+  - Costo: `choose_direction` ahora hace más cálculo por turno (evalúa la
+    respuesta del rival para cada candidato). Falta confirmar contra el
+    server real que sigue dentro del tiempo límite por movimiento.
+    
 ## [v0.3.0-simulator] — Fase C: simulador local
 
 - Nuevo `simulator/local_match.py`: corre partidas completas de Snake en
